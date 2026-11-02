@@ -1,12 +1,12 @@
-# Security & Reverse Engineering Audit: Cracked Burp Suite Pro (`loader.jar`)
+# Security & Reverse Engineering Audit: Untrusted Java Agent (loader.jar)
 
 [![PDF Report](https://img.shields.io/badge/View_Full_Report-PDF-red?style=for-the-badge&logo=adobe-acrobat-reader)](./Report.pdf)
 
-> **Auditor Signature:** `APHP`  
-> **Target Subject:** `loader.jar` (Burp Suite Pro Loader & Keygen v1.17)  
-> **Source Repository:** `xiv3r/Burpsuite-Professional`  
-> **SHA-256 Digest:** `dcdf28acf360554a5a98d78f403c96ccea500be24b27d02b020e142820637c0a`  
-> **Analysis Environment:** Kali Linux (Isolated Hypervisor Sandbox)  
+> **Auditor Signature:** `APHP`
+> **Target Subject:** `loader.jar` (Java Bytecode Agent & License Patcher)
+> **Source Repository:** `xiv3r/Burpsuite-Professional`
+> **SHA-256 Digest:** `dcdf28acf360554a5a98d78f403c96ccea500be24b27d02b020e142820637c0a`
+> **Analysis Environment:** Kali Linux (Isolated Hypervisor Sandbox)
 
 ---
 
@@ -24,6 +24,16 @@ The comprehensive 6-page reverse-engineering report containing all static byteco
 * **Classification:** HackTool / License Key Generator / Java Bytecode Agent Patcher.
 * **Network Activity:** 0 external connections or data exfiltration events observed.
 * **Filesystem Activity:** Only wrote local UI preference states (`.config.ini`).
+
+---
+
+## Methodology
+
+This audit combined three complementary analysis layers:
+
+1. **Static Bytecode Decompilation** — JADX was used to decompile and inspect all class files, instrument injection points, and license validation hooks.
+2. **Dynamic Kernel Tracing** — `strace` monitored all syscalls (file open/read/write, network socket, process fork) during a supervised execution run.
+3. **Network Packet Capture** — `tcpdump` captured the full TCP/UDP session to confirm zero outbound connections beyond local ARP/DHCP broadcasts.
 
 ---
 
