@@ -6,7 +6,7 @@
 > **Target Subject:** `loader.jar` (Java Bytecode Agent & License Patcher)
 > **Source Repository:** `xiv3r/Burpsuite-Professional`
 > **SHA-256 Digest:** `dcdf28acf360554a5a98d78f403c96ccea500be24b27d02b020e142820637c0a`
-> **Analysis Environment:** Kali Linux (Isolated Hypervisor Sandbox)
+> **Analysis Environment:** Kali Linux (Isolated Hypervisor Sandbox — Layer-3 Network Isolated, No WAN Gateway)
 
 ---
 
@@ -22,7 +22,7 @@ The comprehensive 6-page reverse-engineering report containing all static byteco
 
 * **Verdict:** **Benign / Non-Malicious** (No Trojans, RATs, Infostealers, or persistence mechanisms detected).
 * **Classification:** HackTool / License Key Generator / Java Bytecode Agent Patcher.
-* **Network Activity:** 0 external connections or data exfiltration events observed.
+* **Network Activity:** 0 outbound `connect()` syscalls to public IPs; 0 DNS A/AAAA queries on UDP/53.
 * **Filesystem Activity:** Only wrote local UI preference states (`.config.ini`).
 
 ---
@@ -31,9 +31,36 @@ The comprehensive 6-page reverse-engineering report containing all static byteco
 
 This audit combined three complementary analysis layers:
 
-1. **Static Bytecode Decompilation** — JADX was used to decompile and inspect all class files, instrument injection points, and license validation hooks.
-2. **Dynamic Kernel Tracing** — `strace` monitored all syscalls (file open/read/write, network socket, process fork) during a supervised execution run.
+1. **Static Bytecode Decompilation** — JADX was used to decompile and inspect all class files, instrument injection points, and license validation hooks inside `Loader.class` and `Filter.class`.
+2. **Dynamic Kernel Tracing** — `strace` monitored all syscalls (file open/read/write, network socket, process fork) during a supervised standalone execution run (`java -jar loader.jar`).
 3. **Network Packet Capture** — `tcpdump` captured the full TCP/UDP session to confirm zero outbound connections beyond local ARP/DHCP broadcasts.
+
+---
+
+## 🔬 Methodology & Sandbox Constraints (Why the VM is Air-Gapped)
+
+Two design decisions in the analysis environment are documented here to pre-empt technical questions:
+
+### 1. Intentional Layer-3 Network Isolation (`ICMP Host Unreachable`)
+
+Dynamic execution (`strace` + `tcpdump`) was performed inside a **network-isolated VM with no live WAN gateway** — a deliberate precaution to prevent any accidental C2 check-in during the execution of untrusted bytecode. Network safety was verified by two independent signals:
+
+- **`strace` verification:** Zero `connect()` socket syscalls to public IP addresses were observed in the full syscall trace. All socket-related calls were limited to loopback (`127.0.0.1`) for JVM internal IPC.
+- **`tcpdump` verification:** Zero DNS `A` or `AAAA` lookup queries were captured on `UDP/53` prior to any routing failure. The absence of DNS resolution attempts — not merely failed connections — confirms there were no outbound hostname lookups attempted by the process.
+
+The `ICMP Host Unreachable` responses visible in the packet capture are artifacts of the isolated routing table, not of the subject binary attempting connections.
+
+### 2. Standalone GUI Execution vs. `-javaagent` Instrumentation
+
+The dynamic runtime tracing (`strace`, `tcpdump`) targeted the **standalone `KeygenForm` invocation** (`java -jar loader.jar`) — the mode in which the loader presents its GUI and generates license keys — rather than attaching the untrusted agent to a live Burp Suite process via `-javaagent:loader.jar`.
+
+The `-javaagent` instrumentation pathway — specifically the `Loader.class premain()` entry point and the `Filter.class` HTTP traffic mocking hooks — was audited **statically via full JADX bytecode decompilation**. This approach:
+
+- Avoids running untrusted ASM hooks inside a live JVM process
+- Provides complete visibility into every bytecode instruction without sandbox escape risk
+- Produces reproducible, screenshot-backed static evidence rather than runtime artifacts
+
+Both execution pathways are documented in the full PDF report.
 
 ---
 
@@ -41,7 +68,7 @@ This audit combined three complementary analysis layers:
 
 | Vector | Observed Behavior | Malware Pattern | Status |
 | :--- | :--- | :--- | :--- |
-| **Network Traffic** | Local ARP / DHCP requests only | C2 beaconing, DNS tunneling | **PASS (Clean)** |
+| **Network Traffic** | Local ARP / DHCP only; 0 outbound `connect()` syscalls; 0 DNS queries | C2 beaconing, DNS tunneling | **PASS (Clean)** |
 | **Process Execution** | Java version verification only | Spawning hidden interactive shells | **PASS (Clean)** |
 | **File Operations** | Local `.config.ini` write only | Dropping stagers to `/tmp` | **PASS (Clean)** |
-| **Bytecode Safety** | ASM hooks targeted at licensing logic | Encrypted classloaders, memory injection | **PASS (Clean)** |
+| **Bytecode Safety** | ASM hooks targeted at licensing logic in `Loader.class` / `Filter.class` | Encrypted classloaders, memory injection | **PASS (Clean)** |
