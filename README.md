@@ -22,7 +22,8 @@ The comprehensive 6-page reverse-engineering report containing all static byteco
 
 * **Verdict:** **Benign / Non-Malicious** (No Trojans, RATs, Infostealers, or persistence mechanisms detected).
 * **Classification:** HackTool / License Key Generator / Java Bytecode Agent Patcher.
-* **Network Activity:** 0 outbound `connect()` syscalls to public IPs; 0 DNS A/AAAA queries on UDP/53.
+* **Primary Finding Method:** Static JADX bytecode decompilation of all 4 core classes (`Loader.class`, `Filter.class`, `KeygenForm.class`, and supporting utilities) — confirmed absence of trojan droppers, hidden shell execution, and malicious C2 logic.
+* **Dynamic Supplementation:** `strace` process/filesystem syscall auditing inside an air-gapped VM; no outbound `connect()` syscalls to public IPs observed during standalone GUI execution.
 * **Filesystem Activity:** Only wrote local UI preference states (`.config.ini`).
 
 ---
@@ -31,9 +32,9 @@ The comprehensive 6-page reverse-engineering report containing all static byteco
 
 This audit combined three complementary analysis layers:
 
-1. **Static Bytecode Decompilation** — JADX was used to decompile and inspect all class files, instrument injection points, and license validation hooks inside `Loader.class` and `Filter.class`.
-2. **Dynamic Kernel Tracing** — `strace` monitored all syscalls (file open/read/write, network socket, process fork) during a supervised standalone execution run (`java -jar loader.jar`).
-3. **Network Packet Capture** — `tcpdump` captured the full TCP/UDP session to confirm zero outbound connections beyond local ARP/DHCP broadcasts.
+1. **Static Bytecode Decompilation (Primary)** — JADX was used to decompile and inspect all 4 core class files (`Loader.class`, `Filter.class`, `KeygenForm.class`, and supporting utilities), audit every ASM injection point, and verify license validation hooks contain no dropper, shell-execution, or C2 logic.
+2. **Dynamic Kernel Tracing (Supplementary)** — `strace` monitored process/filesystem syscalls during a supervised standalone execution run (`java -jar loader.jar`) inside an air-gapped VM (no WAN gateway), confirming no unexpected child-process spawning or sensitive file writes.
+3. **Network Packet Capture (Environmental Baseline)** — `tcpdump` established a network baseline in the isolated environment. Note: the air-gapped VM had no WAN gateway, so this confirms no outbound connection *attempts* reached the network stack — the primary C2/exfiltration determination derives from the JADX static audit.
 
 ---
 
@@ -68,7 +69,7 @@ Both execution pathways are documented in the full PDF report.
 
 | Vector | Observed Behavior | Malware Pattern | Status |
 | :--- | :--- | :--- | :--- |
-| **Network Traffic** | Local ARP / DHCP only; 0 outbound `connect()` syscalls; 0 DNS queries | C2 beaconing, DNS tunneling | **PASS (Clean)** |
+| **Network Traffic** | No outbound `connect()` syscalls observed in strace; air-gapped VM had no WAN gateway (C2 absence confirmed primarily via JADX static audit) | C2 beaconing, DNS tunneling | **PASS (Clean)** |
 | **Process Execution** | Java version verification only | Spawning hidden interactive shells | **PASS (Clean)** |
 | **File Operations** | Local `.config.ini` write only | Dropping stagers to `/tmp` | **PASS (Clean)** |
 | **Bytecode Safety** | ASM hooks targeted at licensing logic in `Loader.class` / `Filter.class` | Encrypted classloaders, memory injection | **PASS (Clean)** |
